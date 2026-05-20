@@ -1,3 +1,4 @@
+import javax.imageio.plugins.tiff.TIFFImageReadParam;
 import java.io.*;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,28 +13,29 @@ public class Server
     public Server(int port)
     {
         isActive = true;
-        try
-        {
-            try (var serverSocket = new ServerSocket(port))
+
+            new Thread(()->
             {
-                System.out.println("Сервер запущен");
-                while (isActive)
+                try (var serverSocket = new ServerSocket(port))
                 {
-                    try (var socket = serverSocket.accept();) {
-                        //прием на сервер, отправка на клиенте, и наоборот
-                        var br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                        var string = br.readLine();
-                        System.out.println("Клиент прислал: " + string);
-                        var pw = new PrintWriter(socket.getOutputStream());
-                        pw.println("Сервер принял ваше сообщение: " + string);
-                        pw.flush();
+                    System.out.println("Сервер запущен");
+                    while (isActive)
+                    {
+                        try (var socket = serverSocket.accept();) {
+                            System.out.println("Клиент подключен");
+                            //прием на сервер, отправка на клиенте, и наоборот
+                            var connClient = new ConnectedClient(socket);
+                            connClient.start();
+                        } catch (Exception e) {
+                            System.out.println("Ошибка получения клиентов...");
+                            isActive = false;
+                        }
                     }
                 }
-            }
-        }
-        catch (IOException e)
-        {
-            System.out.println("Ошибка включения сервера");
-        }
+                catch (IOException e)
+                {
+                    System.out.println("Ошибка включения сервера");
+                }
+            }).start();
     }
 }
