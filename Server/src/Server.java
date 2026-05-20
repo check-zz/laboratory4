@@ -21,15 +21,11 @@ public class Server
                     System.out.println("Сервер запущен");
                     while (isActive)
                     {
-                        try (var socket = serverSocket.accept();) {
+                        var socket = serverSocket.accept();
                             System.out.println("Клиент подключен");
                             //прием на сервер, отправка на клиенте, и наоборот
                             var connClient = new ConnectedClient(socket);
                             connClient.start();
-                        } catch (Exception e) {
-                            System.out.println("Ошибка получения клиентов...");
-                            isActive = false;
-                        }
                     }
                 }
                 catch (IOException e)
