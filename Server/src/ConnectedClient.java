@@ -29,18 +29,37 @@ public class ConnectedClient {
     public void sendData(String data){
         communicator.sendData(data);
     }
+    //пункт 2
+    private boolean isValidUsername(String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        char firstChar = name.charAt(0);
+        return Character.isLetter(firstChar);
+    }
 
     private void parseData(String data){
         if (name == null){
             if (data.isBlank()){
                 sendData(MessageType.ERROR
                         + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Такое имя не подходит");
+                        + "Вы не можете использовать данное имя");
                 sendData(MessageType.REQUEST
                         + ProtocolConstants.COMMAND_SEPARATOR
                         + "Введите имя");
                 return;
             }
+
+            if (!isValidUsername(data)){
+                sendData(MessageType.ERROR
+                        + ProtocolConstants.COMMAND_SEPARATOR
+                        + "Имя должно начинаться с буквы");
+                sendData(MessageType.REQUEST
+                        + ProtocolConstants.COMMAND_SEPARATOR
+                        + "Введите имя");
+                return;
+            }
+
             if (isInUse(data)){
                 sendData(MessageType.ERROR
                         + ProtocolConstants.COMMAND_SEPARATOR
