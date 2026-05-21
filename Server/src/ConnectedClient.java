@@ -1,4 +1,3 @@
-
 import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -10,11 +9,15 @@ import net.ProtocolConstants;
 public class ConnectedClient {
     private final Communicator communicator;
     private final static List<ConnectedClient> clients = new ArrayList<>();
+    private static DatabaseHandler dbHandler;
+
     private String name = null;
-
+    private int userId = -1;  // <-- ДОБАВЛЕНО
     private boolean authenticated = false;
-    private String pendingName = null;
 
+    static {
+        dbHandler = new DatabaseHandler();
+    }
 
     public ConnectedClient(Socket socket) throws IOException {
         communicator = new Communicator(socket);
@@ -23,6 +26,7 @@ public class ConnectedClient {
             clients.add(this);
         }
     }
+
     public void start(){
         communicator.start();
         sendData(MessageType.REQUEST
@@ -33,7 +37,7 @@ public class ConnectedClient {
     public void sendData(String data){
         communicator.sendData(data);
     }
-    //пункт 2
+
     private boolean isValidUsername(String name) {
         if (name == null || name.isBlank()) {
             return false;
@@ -44,7 +48,6 @@ public class ConnectedClient {
 
     private void parseData(String data){
         if (!authenticated) {
-            // Ожидаем команду LOGIN или REGISTER
             if (data.startsWith("LOGIN:") || data.startsWith("REGISTER:")) {
                 String[] parts = data.split(":", 3);
                 if (parts.length == 3) {
@@ -52,36 +55,51 @@ public class ConnectedClient {
                     String username = parts[1];
                     String password = parts[2];
 
+                    if (!isValidUsername(username)) {
+                        sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                                + "Имя должно начинаться с буквы");
+                        return;
+                    }
+
                     if (action.equals("REGISTER")) {
-                        // Проверяем, что имя начинается с буквы
-                        if (!Character.isLetter(username.charAt(0))) {
+                        // ПРОВЕРКА: существует ли пользователь
+                        if (dbHandler.userExists(username)) {
                             sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
-                                    + "Имя должно начинаться с буквы");
+                                    + "Пользователь уже существует");
                             return;
                         }
-                        // TODO: сохранить в БД
-                        sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
-                                + "Регистрация успешна! Теперь войдите.");
+
+                        // РЕГИСТРАЦИЯ в БД
+                        if (dbHandler.registerUser(username, password)) {
+                            sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Регистрация успешна! Теперь войдите.");
+                        } else {
+                            sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Ошибка регистрации");
+                        }
                     }
                     else if (action.equals("LOGIN")) {
-                        // Проверяем, что имя начинается с буквы
-                        if (!Character.isLetter(username.charAt(0))) {
-                            sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
-                                    + "Имя должно начинаться с буквы");
-                            return;
-                        }
-                        // Проверяем, не занято ли имя
+                        // Проверка, не занято ли имя (онлайн)
                         if (isInUse(username)) {
                             sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
                                     + "Имя уже занято");
                             return;
                         }
-                        // Успешный вход
-                        name = username;
-                        authenticated = true;
-                        sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
-                                + "Добро пожаловать, " + name + "!");
-                        sendForAll(MessageType.INFO, "Пользователь " + name + " вошел в чат");
+
+                        // ПРОВЕРКА пароля и получение ID
+                        Integer id = dbHandler.loginUser(username, password);
+                        if (id != null) {
+                            name = username;
+                            userId = id;  // <-- СОХРАНЯЕМ ID
+                            authenticated = true;
+
+                            sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Добро пожаловать, " + name + "!");
+                            sendForAll(MessageType.INFO, "Пользователь " + name + " вошел в чат");
+                        } else {
+                            sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Неверное имя или пароль");
+                        }
                     }
                 }
             } else {
@@ -89,6 +107,9 @@ public class ConnectedClient {
                         + "Сначала авторизуйтесь");
             }
         } else {
+            // <-- ДОБАВЛЕНО: сохранение сообщения в БД
+            dbHandler.saveMessage(userId, null, data);
+
             sendForAll(MessageType.MESSAGE, data);
         }
     }
@@ -99,7 +120,7 @@ public class ConnectedClient {
                 "";
         synchronized (clients) {
             clients.stream()
-                    .filter(c -> c.name != null)
+                    .filter(c -> c.authenticated)  // <-- ИСПРАВЛЕНО: проверяем authenticated
                     .forEach(client -> {
                         client.sendData(type
                                 + ProtocolConstants.COMMAND_SEPARATOR
@@ -108,6 +129,7 @@ public class ConnectedClient {
                     });
         }
     }
+
     private boolean isInUse(String name){
         synchronized (clients) {
             return clients.stream()
@@ -116,6 +138,12 @@ public class ConnectedClient {
     }
 
     public void stop(){
+        if (name != null) {
+            sendForAll(MessageType.INFO, "Пользователь " + name + " вышел из чата");
+        }
         communicator.stop();
+        synchronized (clients) {
+            clients.remove(this);
+        }
     }
 }
