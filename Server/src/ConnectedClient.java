@@ -92,8 +92,11 @@ public class ConnectedClient {
                             userId = id;
                             authenticated = true;
 
-                            //sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
-                               //     + "Добро пожаловать, " + name + "!");
+                            sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR +
+                                    "MY_NAME:" + name);
+
+                            sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Добро пожаловать, " + name + "!");
 
                             sendChatHistory();
                             sendUserList();
