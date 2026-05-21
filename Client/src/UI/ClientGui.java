@@ -505,10 +505,24 @@ public class ClientGui implements UI {
                 }
 
                 case INFO -> {
+
+                    if (data.startsWith("MY_NAME:")) {
+                        myName = data.substring("MY_NAME:".length());
+                        System.out.println("✓ myName установлен: " + myName);
+
+                        // === ВАЖНО: Включаем поле ввода ===
+                        messageField.setEnabled(true);
+                        sendButton.setEnabled(true);
+                        messageField.requestFocus();
+
+                        return; // Выходим, не показываем это сообщение
+                    }
+
                     if (data.startsWith("Пользователь ") && data.endsWith(" вошел в чат")) {
                         String name = data.substring("Пользователь ".length(), data.length() - " вошел в чат".length());
                         if (myName == null) {
                             myName = name;
+                            System.out.println("✓ myName установлен: " + myName);
                             messageField.setEnabled(true);
                             sendButton.setEnabled(true);
                             messageField.requestFocus();
