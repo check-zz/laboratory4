@@ -252,11 +252,17 @@ public class ClientGui implements UI {
     // Класс для панели со скруглёнными углами
     private static class RoundedPanel extends JPanel {
         private final int cornerRadius;
+        private final boolean drawBorder;
 
         public RoundedPanel(int radius) {
+            this(radius, false);
+        }
+
+        public RoundedPanel(int radius, boolean drawBorder) {
             super();
             this.cornerRadius = radius;
-            setOpaque(false); // Важно для прозрачного фона
+            this.drawBorder = drawBorder;
+            setOpaque(false);
         }
 
         @Override
@@ -265,39 +271,45 @@ public class ClientGui implements UI {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            // Рисуем фон только если цвет не прозрачный
+            // Рисуем фон
             if (getBackground().getAlpha() > 0) {
                 g2.setColor(getBackground());
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), cornerRadius, cornerRadius);
             }
+
+            // Рисуем закруглённую рамку если нужно
+            if (drawBorder) {
+                g2.setColor(new Color(220, 220, 230));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, cornerRadius, cornerRadius);
+            }
+
             g2.dispose();
         }
     }
 
     private void addMessage(String author, String text, boolean isMine) {
         SwingUtilities.invokeLater(() -> {
-            // Пузырёк с фиксированной шириной
-            RoundedPanel bubble = new RoundedPanel(15);
+            // === СОЗДАЁМ ПУЗЫРЁК С ЗАКРУГЛЁННОЙ РАМКОЙ ДЛЯ ЧУЖИХ ===
+            RoundedPanel bubble = new RoundedPanel(15, !isMine); // true = рисовать рамку
             bubble.setLayout(new BoxLayout(bubble, BoxLayout.Y_AXIS));
 
-            // Цвета и отступы - УМЕНЬШЕНЫ ВЕРХНИЕ И НИЖНИЕ ОТСТУПЫ
+            int padding = 8;
+            int paddingSide = 10;
             if (isMine) {
                 bubble.setBackground(new Color(0, 120, 215));
                 bubble.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10)); // Было (8, 12, 8, 12)
             } else {
                 bubble.setBackground(Color.WHITE);
-                bubble.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(220, 220, 230)),
-                        BorderFactory.createEmptyBorder(10, 10, 10, 10) // Было (8, 12, 8, 12)
-                ));
+                // Убираем LineBorder - рамка теперь рисуется в paintComponent
+                bubble.setBorder(BorderFactory.createEmptyBorder(padding, paddingSide, padding, paddingSide));
             }
 
             // Имя автора - слева сверху
             JLabel nameLabel = new JLabel(author);
-            nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
             nameLabel.setForeground(isMine ? new Color(220, 235, 255) : new Color(100, 100, 120));
             nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            nameLabel.setBorder(BorderFactory.createEmptyBorder(-1, 0, 2, 0)); // Уменьшен отступ снизу (было 4)
+            nameLabel.setBorder(BorderFactory.createEmptyBorder(-2, 0, 2, 0)); // Уменьшен отступ снизу (было 4)
             bubble.add(nameLabel);
 
             // Текст сообщения с переносом слов
@@ -338,6 +350,8 @@ public class ClientGui implements UI {
             });
         });
     }
+
+
     private void addSystemMessage(String text) {
         SwingUtilities.invokeLater(() -> {
             JPanel systemPanel = new JPanel();
