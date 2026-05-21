@@ -12,6 +12,10 @@ public class ConnectedClient {
     private final static List<ConnectedClient> clients = new ArrayList<>();
     private String name = null;
 
+    private boolean authenticated = false;
+    private String pendingName = null;
+
+
     public ConnectedClient(Socket socket) throws IOException {
         communicator = new Communicator(socket);
         communicator.addDataListener(this::parseData);
@@ -39,42 +43,54 @@ public class ConnectedClient {
     }
 
     private void parseData(String data){
-        if (name == null){
-            if (data.isBlank()){
-                sendData(MessageType.ERROR
-                        + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Вы не можете использовать данное имя");
-                sendData(MessageType.REQUEST
-                        + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Введите имя");
-                return;
-            }
+        if (!authenticated) {
+            // Ожидаем команду LOGIN или REGISTER
+            if (data.startsWith("LOGIN:") || data.startsWith("REGISTER:")) {
+                String[] parts = data.split(":", 3);
+                if (parts.length == 3) {
+                    String action = parts[0];
+                    String username = parts[1];
+                    String password = parts[2];
 
-            if (!isValidUsername(data)){
-                sendData(MessageType.ERROR
-                        + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Имя должно начинаться с буквы");
-                sendData(MessageType.REQUEST
-                        + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Введите имя");
-                return;
+                    if (action.equals("REGISTER")) {
+                        // Проверяем, что имя начинается с буквы
+                        if (!Character.isLetter(username.charAt(0))) {
+                            sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Имя должно начинаться с буквы");
+                            return;
+                        }
+                        // TODO: сохранить в БД
+                        sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
+                                + "Регистрация успешна! Теперь войдите.");
+                    }
+                    else if (action.equals("LOGIN")) {
+                        // Проверяем, что имя начинается с буквы
+                        if (!Character.isLetter(username.charAt(0))) {
+                            sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Имя должно начинаться с буквы");
+                            return;
+                        }
+                        // Проверяем, не занято ли имя
+                        if (isInUse(username)) {
+                            sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                                    + "Имя уже занято");
+                            return;
+                        }
+                        // Успешный вход
+                        name = username;
+                        authenticated = true;
+                        sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
+                                + "Добро пожаловать, " + name + "!");
+                        sendForAll(MessageType.INFO, "Пользователь " + name + " вошел в чат");
+                    }
+                }
+            } else {
+                sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
+                        + "Сначала авторизуйтесь");
             }
-
-            if (isInUse(data)){
-                sendData(MessageType.ERROR
-                        + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Такое имя уже занято");
-                sendData(MessageType.REQUEST
-                        + ProtocolConstants.COMMAND_SEPARATOR
-                        + "Введите имя");
-                return;
-            }
-            name = data;
-            sendForAll(MessageType.INFO, "Пользователь "+ name + " вошел в чат");
         } else {
             sendForAll(MessageType.MESSAGE, data);
         }
-
     }
 
     private void sendForAll(MessageType type, String data){
