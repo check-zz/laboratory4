@@ -7,6 +7,8 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.IOException;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class ClientGui implements UI {
     private JFrame frame;
@@ -105,7 +107,7 @@ public class ClientGui implements UI {
 
     private void createAndShowGUI() {
         frame = new JFrame("TeaSpill");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         frame.setSize(900, 650);
         frame.setLocationRelativeTo(null);
         frame.getContentPane().setBackground(new Color(240, 240, 245));
@@ -171,14 +173,14 @@ public class ClientGui implements UI {
         bottomPanel.setBackground(new Color(240, 240, 245));
         bottomPanel.setBorder(new EmptyBorder(10, 0, 0, 80)); // Увеличены отступы по бокам
 
-// Создаем rounded текстовое поле
+        // Создаем rounded текстовое поле
         messageField = new RoundedTextField(0);
         messageField.setEnabled(false);
         messageField.setPreferredSize(new Dimension(0, 50));
-// Placeholder
+        // Placeholder
         setPlaceholder(messageField, "Введите сообщение...");
 
-// Создаем rounded кнопку
+        // Создаем rounded кнопку
         sendButton = new RoundedButton("Отправить");
         sendButton.setEnabled(false);
         sendButton.setPreferredSize(new Dimension(120, 50));
@@ -191,9 +193,21 @@ public class ClientGui implements UI {
         frame.add(mainPanel);
         frame.setVisible(true);
 
+        // === Обработка закрытия ===
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                performLogout();
+                frame.dispose(); // Закрываем окно
+                System.exit(0);  // Завершаем приложение
+            }
+        });
+
         sendButton.addActionListener(e -> sendMessage());
         messageField.addActionListener(e -> sendMessage());
     }
+
+
 
     // Метод для добавления placeholder
     private void setPlaceholder(JTextField field, String placeholder) {
@@ -470,6 +484,26 @@ public class ClientGui implements UI {
                         addMessage(author, text, isMine);
                     }
                 }
+
+                case HISTORY -> {  // <-- ДОБАВЛЕНО: обработка истории
+                    String[] parts = data.split(":", 2);
+                    if (parts.length == 2) {
+                        String author = parts[0];
+                        String text = parts[1];
+                        boolean isMine = myName != null && myName.equalsIgnoreCase(author);
+                        addMessage(author, text, isMine);
+                    }
+                }
+                case USER_LIST -> {  // <-- ДОБАВЛЕНО: обработка списка пользователей
+                    String[] users = data.split(",");
+                    userListModel.clear();
+                    for (String user : users) {
+                        if (!user.isEmpty() && !userListModel.contains(user)) {
+                            userListModel.addElement(user);
+                        }
+                    }
+                }
+
                 case INFO -> {
                     if (data.startsWith("Пользователь ") && data.endsWith(" вошел в чат")) {
                         String name = data.substring("Пользователь ".length(), data.length() - " вошел в чат".length());
@@ -532,5 +566,22 @@ public class ClientGui implements UI {
     @Override
     public void removeUserDataListener(java.util.function.Consumer<String> listener) {
         listeners.remove(listener);
+    }
+
+
+    private void performLogout() {
+        if (myName != null && client != null) {
+            try {
+                // Отправляем LOGOUT
+                sendToServer("LOGOUT:" + myName);
+                // Ждём немного
+                Thread.sleep(100);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            } finally {
+                // Закрываем соединение
+                client.stop();
+            }
+        }
     }
 }

@@ -69,7 +69,6 @@ public class ConnectedClient {
                             return;
                         }
 
-                        // РЕГИСТРАЦИЯ в БД
                         if (dbHandler.registerUser(username, password)) {
                             sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
                                     + "Регистрация успешна! Теперь войдите.");
@@ -90,11 +89,14 @@ public class ConnectedClient {
                         Integer id = dbHandler.loginUser(username, password);
                         if (id != null) {
                             name = username;
-                            userId = id;  // <-- СОХРАНЯЕМ ID
+                            userId = id;
                             authenticated = true;
 
-                            sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
-                                    + "Добро пожаловать, " + name + "!");
+                            //sendData(MessageType.INFO + ProtocolConstants.COMMAND_SEPARATOR
+                               //     + "Добро пожаловать, " + name + "!");
+
+                            sendChatHistory();
+                            sendUserList();
                             sendForAll(MessageType.INFO, "Пользователь " + name + " вошел в чат");
                         } else {
                             sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
@@ -107,7 +109,13 @@ public class ConnectedClient {
                         + "Сначала авторизуйтесь");
             }
         } else {
-            // <-- ДОБАВЛЕНО: сохранение сообщения в БД
+
+                if (data.startsWith("LOGOUT:")) {
+                    stop(); // Корректно завершаем сессию
+                    return;
+                }
+
+
             dbHandler.saveMessage(userId, null, data);
 
             sendForAll(MessageType.MESSAGE, data);
@@ -130,20 +138,57 @@ public class ConnectedClient {
         }
     }
 
+    // === НОВЫЙ МЕТОД: Отправка истории сообщений ===
+    private void sendChatHistory() {
+        List<DatabaseHandler.MessageInfo> history = dbHandler.getChatHistory(userId, -1, 50);
+        for (DatabaseHandler.MessageInfo msg : history) {
+            String formattedMsg = msg.senderNickname + ":" + msg.text;
+            sendData(MessageType.HISTORY + ProtocolConstants.COMMAND_SEPARATOR + formattedMsg);
+        }
+    }
+
+    // === НОВЫЙ МЕТОД: Отправка списка пользователей ===
+    private void sendUserList() {
+        StringBuilder userList = new StringBuilder();
+        synchronized (clients) {
+            for (ConnectedClient client : clients) {
+                if (client.authenticated && client.name != null) {
+                    if (userList.length() > 0) {
+                        userList.append(",");
+                    }
+                    userList.append(client.name);
+                }
+            }
+        }
+        if (userList.length() > 0) {
+            sendData(MessageType.USER_LIST + ProtocolConstants.COMMAND_SEPARATOR + userList.toString());
+        }
+    }
+
+
+
     private boolean isInUse(String name){
         synchronized (clients) {
             return clients.stream()
-                    .anyMatch(c -> c.name != null && c.name.equalsIgnoreCase(name));
+                    .anyMatch(c -> c.authenticated && c.name != null && c.name.equalsIgnoreCase(name));
         }
     }
 
     public void stop(){
-        if (name != null) {
+        if (name != null && authenticated) {
+            // Уведомляем ВСЕХ о выходе (включая самого себя)
             sendForAll(MessageType.INFO, "Пользователь " + name + " вышел из чата");
         }
+
         communicator.stop();
+
         synchronized (clients) {
-            clients.remove(this);
+            clients.remove(this); // Удаляем из списка
         }
+
+        // Сбрасываем данные
+        name = null;
+        userId = -1;
+        authenticated = false;
     }
 }
