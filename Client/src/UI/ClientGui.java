@@ -7,8 +7,9 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.IOException;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Random;
 
 public class ClientGui implements UI {
     private JFrame frame;
@@ -18,6 +19,11 @@ public class ClientGui implements UI {
     private JButton sendButton;
     private JList<String> userList;
     private DefaultListModel<String> userListModel;
+    private Map<String, Color> userColors = new HashMap<>(); // Хранилище цветов
+    private JLabel currentUserNameLabel;
+
+    private String selectedChat = "General";
+    private String selectedUser = null;
 
     public Client client;
     private String myName = null;
@@ -122,7 +128,14 @@ public class ClientGui implements UI {
         JLabel statusLabel = new JLabel("Сервер: " + SERVER_HOST + ":" + SERVER_PORT);
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         statusLabel.setForeground(new Color(0, 100, 0));
-        topPanel.add(statusLabel);
+        topPanel.add(statusLabel, BorderLayout.WEST);
+
+        currentUserNameLabel = new JLabel("", SwingConstants.RIGHT);
+        currentUserNameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        currentUserNameLabel.setForeground(new Color(0, 120, 215));
+        topPanel.add(currentUserNameLabel, BorderLayout.EAST);
+
+
         mainPanel.add(topPanel, BorderLayout.NORTH);
 
         // Центральная панель
@@ -140,16 +153,44 @@ public class ClientGui implements UI {
 
         // Список пользователей
         userListModel = new DefaultListModel<>();
+        userListModel.addElement("General");
         userList = new JList<>(userListModel);
         userList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         userList.setBackground(new Color(250, 250, 255));
         userList.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(200, 200, 210)),
-                "Пользователи онлайн",
+                "Чаты",
                 javax.swing.border.TitledBorder.LEFT,
                 javax.swing.border.TitledBorder.TOP,
                 new Font("Segoe UI", Font.BOLD, 12)
         ));
+
+        userList.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 1) {  // Одинарный клик
+                    int index = userList.locationToIndex(e.getPoint());
+                    if (index >= 0) {
+                        String selected = userListModel.get(index);
+
+                        if ("General".equals(selected)) {
+                            // Общий чат - просто переключаем
+                            selectChat(selected);
+                        } else {
+                            // Личный чат - вставляем @username: в поле ввода
+                            selectChat(selected);
+                            messageField.setText("@" + selected + ":");
+                            messageField.setForeground(Color.BLACK);
+                            messageField.requestFocus();
+                            // Выделяем текст после @ для удобства редактирования
+                            messageField.select(1, messageField.getText().length());
+                        }
+                    }
+                }
+            }
+        });
+
+        userList.setSelectedIndex(0);
+
         JScrollPane userScroll = new JScrollPane(userList);
         userScroll.setPreferredSize(new Dimension(200, 0));
         userScroll.setBorder(BorderFactory.createEmptyBorder());
@@ -161,7 +202,7 @@ public class ClientGui implements UI {
         // Панель чата на всю ширину
         mainPanel.add(chatScrollPane, BorderLayout.CENTER);
 
-// Список пользователей добавляем в правую часть как отдельную панель
+        // Список пользователей добавляем в правую часть как отдельную панель
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setPreferredSize(new Dimension(200, 0));
         rightPanel.setBackground(new Color(240, 240, 245));
@@ -208,6 +249,29 @@ public class ClientGui implements UI {
     }
 
 
+    private void selectChat(String chatName) {
+        if ("General".equals(chatName)) {
+            selectedChat = "General";
+            selectedUser = null;
+            messageField.setText("");
+            setPlaceholder(messageField, "Введите сообщение...");
+            userList.setSelectedIndex(0);  // Выделяем визуально
+        } else {
+            selectedChat = "Private";
+            selectedUser = chatName;
+            messageField.setText("");
+            setPlaceholder(messageField, "Личное сообщение для " + chatName + "...");
+            // Находим и выделяем выбранного пользователя в списке
+            for (int i = 0; i < userListModel.size(); i++) {
+                if (userListModel.get(i).equals(chatName)) {
+                    userList.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+        messageField.requestFocus();
+    }
+
 
     // Метод для добавления placeholder
     private void setPlaceholder(JTextField field, String placeholder) {
@@ -251,7 +315,23 @@ public class ClientGui implements UI {
     private void sendMessage() {
         String text = messageField.getText().trim();
         if (!text.isEmpty() && myName != null && !text.equals("Введите сообщение...")) {
-            sendToServer(text);
+
+            // === Проверяем формат личного сообщения @username:текст ===
+            String messageToSend = text;
+
+            // Если сообщение начинается с @ и содержит :
+            if (text.startsWith("@") && text.contains(":")) {
+                int colonIndex = text.indexOf(":");
+                String potentialUser = text.substring(1, colonIndex).trim();
+
+                // Проверяем, что после @ есть имя (хотя бы 1 буква)
+                if (!potentialUser.isEmpty() && Character.isLetter(potentialUser.charAt(0))) {
+                    // Отправляем как есть - сервер распознает формат @user:текст
+                    messageToSend = text;
+                }
+            }
+
+            sendToServer(messageToSend);
             messageField.setText("");
             messageField.requestFocus();
         }
@@ -321,7 +401,7 @@ public class ClientGui implements UI {
             // Имя автора - слева сверху
             JLabel nameLabel = new JLabel(author);
             nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-            nameLabel.setForeground(isMine ? new Color(220, 235, 255) : new Color(100, 100, 120));
+            nameLabel.setForeground(isMine ? new Color(220, 235, 255) : getUserColor(author));
             nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
             nameLabel.setBorder(BorderFactory.createEmptyBorder(-2, 0, 2, 0)); // Уменьшен отступ снизу (было 4)
             bubble.add(nameLabel);
@@ -475,13 +555,35 @@ public class ClientGui implements UI {
     public void showInfo(String data, MessageType type) {
         SwingUtilities.invokeLater(() -> {
             switch (type) {
+
                 case MESSAGE -> {
                     String[] parts = data.split(":", 2);
                     if (parts.length == 2) {
                         String author = parts[0];
                         String text = parts[1];
+
+                        // === Проверка: это личное сообщение? ===
+                        boolean isPrivate = text.startsWith("[Личное]");
+                        String displayText = text;
+
+                        if (isPrivate) {
+                            // Убираем [Личное] и [получатель] для отображения
+                            displayText = text.substring("[Личное] ".length());
+                            // Если есть [получатель], убираем и его
+                            if (displayText.startsWith("[")) {
+                                int closeBracket = displayText.indexOf("] ");
+                                if (closeBracket > 0) {
+                                    displayText = displayText.substring(closeBracket + 2);
+                                }
+                            }
+
+                            displayText = "🔒 " + displayText;
+                        }
+
+                        // === Показываем ВСЕ сообщения (сервер уже отфильтровал) ===
+                        // Сервер отправляет только тем, кому нужно
                         boolean isMine = myName != null && myName.equalsIgnoreCase(author);
-                        addMessage(author, text, isMine);
+                        addMessage(author, displayText, isMine);
                     }
                 }
 
@@ -510,12 +612,13 @@ public class ClientGui implements UI {
                         myName = data.substring("MY_NAME:".length());
                         System.out.println("✓ myName установлен: " + myName);
 
-                        // === ВАЖНО: Включаем поле ввода ===
+                        currentUserNameLabel.setText(myName.toUpperCase());
+
                         messageField.setEnabled(true);
                         sendButton.setEnabled(true);
                         messageField.requestFocus();
 
-                        return; // Выходим, не показываем это сообщение
+                        return;
                     }
 
                     if (data.startsWith("Пользователь ") && data.endsWith(" вошел в чат")) {
@@ -598,4 +701,31 @@ public class ClientGui implements UI {
             }
         }
     }
+
+
+    // === Генерация уникального цвета для каждого пользователя ===
+    // === Генерация уникального цвета для каждого пользователя ===
+    private Color getUserColor(String username) {
+        return userColors.computeIfAbsent(username, k -> {
+            // Используем хеш-код имени как основу, но добавляем "шум" для разнообразия
+            int seed = k.hashCode() ^ System.identityHashCode(k); // XOR с identity hash для большей случайности
+
+            Random random = new Random(seed);
+
+            // Генерируем яркие, насыщенные цвета (не слишком тёмные, не слишком светлые)
+            int r = random.nextInt(200) + 55;   // 55–254
+            int g = random.nextInt(200) + 55;   // 55–254
+            int b = random.nextInt(200) + 55;   // 55–254
+
+            // Исключаем очень светлые цвета (близкие к белому) — они плохо читаются на белом фоне
+            while (r > 230 && g > 230 && b > 230) {
+                r = random.nextInt(200) + 55;
+                g = random.nextInt(200) + 55;
+                b = random.nextInt(200) + 55;
+            }
+
+            return new Color(r, g, b);
+        });
+    }
+
 }

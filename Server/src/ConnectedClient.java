@@ -12,7 +12,7 @@ public class ConnectedClient {
     private static DatabaseHandler dbHandler;
 
     private String name = null;
-    private int userId = -1;  // <-- ДОБАВЛЕНО
+    private int userId = -1;
     private boolean authenticated = false;
 
     static {
@@ -78,14 +78,12 @@ public class ConnectedClient {
                         }
                     }
                     else if (action.equals("LOGIN")) {
-                        // Проверка, не занято ли имя (онлайн)
                         if (isInUse(username)) {
                             sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR
                                     + "Имя уже занято");
                             return;
                         }
 
-                        // ПРОВЕРКА пароля и получение ID
                         Integer id = dbHandler.loginUser(username, password);
                         if (id != null) {
                             name = username;
@@ -118,12 +116,64 @@ public class ConnectedClient {
                     return;
                 }
 
+            // === Обработка личных сообщений ===
+            if (data.startsWith("@")) {
+                int colonIndex = data.indexOf(":");
+                if (colonIndex > 0) {
+                    String receiverName = data.substring(1, colonIndex);
+                    String messageText = data.substring(colonIndex + 1);
+
+                    System.out.println("Личное сообщение от " + name + " для " + receiverName + ": " + messageText);
+
+                    // Находим получателя
+                    ConnectedClient receiver = findClientByName(receiverName);
+                    if (receiver != null && receiver.authenticated) {
+                        // Сохраняем в БД с указанием получателя
+                        Integer receiverId = dbHandler.getUserIdByNickname(receiverName);
+                        dbHandler.saveMessage(userId, receiverId, "[Личное] [" + receiverName + "] " + messageText);
+
+                        System.out.println("→ Отправка получателю " + receiver.name);
+
+                        // Отправляем только получателю
+                        receiver.sendData(MessageType.MESSAGE + ProtocolConstants.COMMAND_SEPARATOR +
+                                name + ProtocolConstants.AUTHOR_SEPARATOR + "[Личное] " + messageText);
+
+                        // Отправляем себе подтверждение (чтобы видеть в своём чате)
+                        sendData(MessageType.MESSAGE + ProtocolConstants.COMMAND_SEPARATOR +
+                                name + ProtocolConstants.AUTHOR_SEPARATOR + "[Личное] [" + receiverName + "] " + messageText);
+
+                        System.out.println("✓ Сообщение отправлено");
+                    } else {
+                        System.out.println("✗ Получатель не найден или не авторизован");
+                        sendData(MessageType.ERROR + ProtocolConstants.COMMAND_SEPARATOR +
+                                "Пользователь " + receiverName + " не в сети");
+                    }
+                    return;  // Завершаем обработку, не рассылаем всем
+                }
+            }
+
 
             dbHandler.saveMessage(userId, null, data);
 
             sendForAll(MessageType.MESSAGE, data);
         }
     }
+
+    // === НОВЫЙ МЕТОД: Поиск клиента по имени ===
+    private ConnectedClient findClientByName(String name) {
+        synchronized (clients) {
+            for (ConnectedClient client : clients) {
+                if (client.authenticated && client.name != null &&
+                        client.name.equalsIgnoreCase(name)) {
+                    System.out.println("✓ Найден получатель: " + name);
+                    return client;
+                }
+            }
+        }
+        System.out.println("✗ Получатель не найден: " + name);
+        return null;
+    }
+
 
     private void sendForAll(MessageType type, String data){
         var author = (type == MessageType.MESSAGE) ?
@@ -150,7 +200,6 @@ public class ConnectedClient {
         }
     }
 
-    // === НОВЫЙ МЕТОД: Отправка списка пользователей ===
     private void sendUserList() {
         StringBuilder userList = new StringBuilder();
         synchronized (clients) {
