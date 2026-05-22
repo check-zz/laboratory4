@@ -6,5 +6,6 @@ public enum MessageType {
     REQUEST,
     ERROR,
     HISTORY,
-    USER_LIST
+    USER_LIST,
+    READ_ACK
     }

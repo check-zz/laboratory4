@@ -179,15 +179,20 @@ public class ConnectedClient {
         var author = (type == MessageType.MESSAGE) ?
                 name + ProtocolConstants.AUTHOR_SEPARATOR :
                 "";
+        boolean anyoneReceived = false;
+
         synchronized (clients) {
-            clients.stream()
-                    .filter(c -> c.authenticated)  // <-- ИСПРАВЛЕНО: проверяем authenticated
-                    .forEach(client -> {
-                        client.sendData(type
-                                + ProtocolConstants.COMMAND_SEPARATOR
-                                + author
-                                + data);
-                    });
+            for (ConnectedClient client : clients) {
+                // Не отправляем сообщение самому себе (оно уже есть у отправителя)
+                if (client != this && client.authenticated) {
+                    client.sendData(type + ProtocolConstants.COMMAND_SEPARATOR + author + data);
+                    anyoneReceived = true;
+                }
+            }
+        }
+
+        if (type == MessageType.MESSAGE && anyoneReceived) {
+            sendData(MessageType.READ_ACK + ProtocolConstants.COMMAND_SEPARATOR + "ACK");
         }
     }
 
@@ -238,9 +243,36 @@ public class ConnectedClient {
             clients.remove(this); // Удаляем из списка
         }
 
+        sendUserListToAll();
+
         // Сбрасываем данные
         name = null;
         userId = -1;
         authenticated = false;
     }
+
+    private void sendUserListToAll() {
+        StringBuilder userList = new StringBuilder();
+        synchronized (clients) {
+            for (ConnectedClient client : clients) {
+                if (client.authenticated && client.name != null) {
+                    if (userList.length() > 0) {
+                        userList.append(",");
+                    }
+                    userList.append(client.name);
+                }
+            }
+        }
+        if (userList.length() > 0) {
+            String listData = MessageType.USER_LIST + ProtocolConstants.COMMAND_SEPARATOR + userList.toString();
+            synchronized (clients) {
+                for (ConnectedClient client : clients) {
+                    if (client.authenticated) {
+                        client.sendData(listData);
+                    }
+                }
+            }
+        }
+    }
+
 }
