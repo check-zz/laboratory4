@@ -667,7 +667,7 @@ public class ClientGui implements UI {
                         addSystemMessage(data);
                     } else if (data.startsWith("Пользователь ") && data.endsWith(" вышел из чата")) {
                         String name = data.substring("Пользователь ".length(), data.length() - " вышел из чата".length());
-                        userListModel.removeElement(name);
+                        userListModel.removeElement(name.toUpperCase());
                         addSystemMessage(data);
                     } else if (data.equals("Регистрация успешна! Теперь войдите.")) {
                         addSystemMessage(" " + data);
@@ -733,8 +733,6 @@ public class ClientGui implements UI {
         }
     }
 
-
-    // === Генерация уникального цвета для каждого пользователя ===
     // === Генерация уникального цвета для каждого пользователя ===
     private Color getUserColor(String username) {
         return userColors.computeIfAbsent(username, k -> {

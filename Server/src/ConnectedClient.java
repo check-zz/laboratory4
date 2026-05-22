@@ -243,9 +243,36 @@ public class ConnectedClient {
             clients.remove(this); // Удаляем из списка
         }
 
+        sendUserListToAll();
+
         // Сбрасываем данные
         name = null;
         userId = -1;
         authenticated = false;
     }
+
+    private void sendUserListToAll() {
+        StringBuilder userList = new StringBuilder();
+        synchronized (clients) {
+            for (ConnectedClient client : clients) {
+                if (client.authenticated && client.name != null) {
+                    if (userList.length() > 0) {
+                        userList.append(",");
+                    }
+                    userList.append(client.name);
+                }
+            }
+        }
+        if (userList.length() > 0) {
+            String listData = MessageType.USER_LIST + ProtocolConstants.COMMAND_SEPARATOR + userList.toString();
+            synchronized (clients) {
+                for (ConnectedClient client : clients) {
+                    if (client.authenticated) {
+                        client.sendData(listData);
+                    }
+                }
+            }
+        }
+    }
+
 }
