@@ -13,7 +13,9 @@ import net.ProtocolConstants;
 
     private final List<Consumer<String>> listeners = new ArrayList<>();
 
-    public void start(){
+     private String myName = null;
+
+     public void start(){
         var scanner = new Scanner(System.in, StandardCharsets.UTF_8);
         new Thread(()-> {
             while (true) {
@@ -33,8 +35,33 @@ import net.ProtocolConstants;
                         ProtocolConstants.AUTHOR_SEPARATOR,
                         2
                 );
-                System.out.println(message[0]+" написал: ");
-                System.out.println(message[1]);
+                String author = (message[0]);
+                String text = (message[1]);
+
+                // ← НОВАЯ ЛОГИКА: проверяем, своё сообщение или чужое
+                if (myName != null && myName.equalsIgnoreCase(author)) {
+                    System.out.println("Вы: ");
+                    System.out.println(text);
+                } else {
+                    System.out.println(author + ": ");
+                    System.out.println(text);
+                }
+            }
+
+            case INFO -> {
+                // ← АВТОМАТИЧЕСКИ ИЗВЛЕКАЕМ ИМЯ ИЗ СООБЩЕНИЯ О ВХОДЕ
+                if (data.startsWith("Пользователь ") && data.endsWith(" вошел в чат")) {
+                    String extractedName = data.substring(
+                            "Пользователь ".length(),
+                            data.length() - " вошел в чат".length()
+                    );
+                    if (myName == null) {
+                        myName = extractedName;
+                        System.out.println("Ваше имя: " + myName);
+                        System.out.println("Теперь ваши сообщения будут показываться как 'Вы написали:'");
+                    }
+                }
+                System.out.println(data);
             }
             case ERROR -> {
                 System.err.println(data);
@@ -47,11 +74,14 @@ import net.ProtocolConstants;
 
     @Override
     public void addUserDataListener(Consumer<String> listener) {
-        listeners.add(listener);
+        if (!listeners.contains(listener)) {  // ← предотвращаем дублирование
+            listeners.add(listener);
+        }
     }
 
     @Override
     public void removeUserDataListener(Consumer<String> listener) {
         listeners.remove(listener);
     }
+
 }

@@ -42,7 +42,7 @@ public class Communicator {
 
     public void start(){
         isActive = true;
-        new Thread(()-> {
+        Thread readThread = new Thread(() -> {
             try {
                 while (isActive) {
                     var data = in.readLine();
@@ -58,7 +58,9 @@ public class Communicator {
             finally {
                 stop();
             }
-        }).start();
+        });
+        readThread.setDaemon(true); // <-- ВАЖНО: делаем поток daemon
+        readThread.start();
     }
 
     public void sendData(String data){
