@@ -21,6 +21,7 @@ public class ClientGui implements UI {
     private DefaultListModel<String> userListModel;
     private Map<String, Color> userColors = new HashMap<>(); // Хранилище цветов
     private JLabel currentUserNameLabel;
+    private JLabel lastSentStatusIcon = null;
 
     private String selectedChat = "General";
     private String selectedUser = null;
@@ -317,22 +318,20 @@ public class ClientGui implements UI {
         String text = messageField.getText().trim();
         if (!text.isEmpty() && myName != null && !text.equals("Введите сообщение...")) {
 
-            // === Проверяем формат личного сообщения @username:текст ===
-            String messageToSend = text;
+            // === СРАЗУ ПОКАЗЫВАЕМ СООБЩЕНИЕ НА ЭКРАНЕ ===
+            addMessage(myName, text, true);
 
-            // Если сообщение начинается с @ и содержит :
-            if (text.startsWith("@") && text.contains(":")) {
-                int colonIndex = text.indexOf(":");
-                String potentialUser = text.substring(1, colonIndex).trim();
-
-                // Проверяем, что после @ есть имя (хотя бы 1 буква)
-                if (!potentialUser.isEmpty() && Character.isLetter(potentialUser.charAt(0))) {
-                    // Отправляем как есть - сервер распознает формат @user:текст
-                    messageToSend = text;
-                }
+            // Формируем сообщение для отправки
+            String messageToSend;
+            if ("General".equals(selectedChat)) {
+                messageToSend = text;
+            } else {
+                messageToSend = "@" + selectedUser + ":" + text;
             }
 
+            // Отправляем на сервер
             sendToServer(messageToSend);
+
             messageField.setText("");
             messageField.requestFocus();
         }
@@ -425,6 +424,22 @@ public class ClientGui implements UI {
             textLabel.setText(wrappedText);
 
             bubble.add(textLabel);
+
+            if (isMine) {
+                JLabel statusIcon = new JLabel("  ✔", SwingConstants.RIGHT);
+                statusIcon.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                statusIcon.setForeground(Color.WHITE); // Светло-голубой/белый цвет
+                statusIcon.setAlignmentX(Component.RIGHT_ALIGNMENT);
+                statusIcon.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+                bubble.add(statusIcon);
+
+                // Сохраняем ссылку, чтобы потом обновить на две галочки
+                lastSentStatusIcon = statusIcon;
+
+                System.out.println("✓ Создана галочка для сообщения: " + text);
+            }
+
+
 
             // Фиксированная ширина пузырька
             bubble.setPreferredSize(new Dimension(250, 50));
@@ -609,6 +624,16 @@ public class ClientGui implements UI {
                         if (!user.isEmpty() && !userListModel.contains(user)) {
                             userListModel.addElement(user.toUpperCase());
                         }
+                    }
+                }
+
+                case READ_ACK -> {
+                    System.out.println("Получено подтверждение прочтения");
+                    if (lastSentStatusIcon != null) {
+                        lastSentStatusIcon.setText("  ✓✓"); // Две галочки
+                        System.out.println("✓✓ Галочка обновлена на двойную");
+                    } else {
+                        System.out.println("lastSentStatusIcon = null");
                     }
                 }
 

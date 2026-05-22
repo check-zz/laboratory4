@@ -179,15 +179,20 @@ public class ConnectedClient {
         var author = (type == MessageType.MESSAGE) ?
                 name + ProtocolConstants.AUTHOR_SEPARATOR :
                 "";
+        boolean anyoneReceived = false;
+
         synchronized (clients) {
-            clients.stream()
-                    .filter(c -> c.authenticated)  // <-- ИСПРАВЛЕНО: проверяем authenticated
-                    .forEach(client -> {
-                        client.sendData(type
-                                + ProtocolConstants.COMMAND_SEPARATOR
-                                + author
-                                + data);
-                    });
+            for (ConnectedClient client : clients) {
+                // Не отправляем сообщение самому себе (оно уже есть у отправителя)
+                if (client != this && client.authenticated) {
+                    client.sendData(type + ProtocolConstants.COMMAND_SEPARATOR + author + data);
+                    anyoneReceived = true;
+                }
+            }
+        }
+
+        if (type == MessageType.MESSAGE && anyoneReceived) {
+            sendData(MessageType.READ_ACK + ProtocolConstants.COMMAND_SEPARATOR + "ACK");
         }
     }
 
