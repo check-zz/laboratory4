@@ -57,7 +57,8 @@ public class ClientGui implements UI {
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), cornerRadius, cornerRadius);
 
             // Рисуем границу
-            g2.setColor(new Color(220, 220, 230));
+            g2.setColor(new Color(160, 160, 180));          // Более тёмный и заметный цвет
+            g2.setStroke(new java.awt.BasicStroke(2.0f));
             g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, cornerRadius, cornerRadius);
 
             g2.dispose();
@@ -155,7 +156,7 @@ public class ClientGui implements UI {
         userListModel = new DefaultListModel<>();
         userListModel.addElement("General");
         userList = new JList<>(userListModel);
-        userList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        userList.setFont(new Font("Segoe UI", Font.PLAIN, 16));
         userList.setBackground(new Color(250, 250, 255));
         userList.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(200, 200, 210)),
@@ -383,20 +384,25 @@ public class ClientGui implements UI {
 
     private void addMessage(String author, String text, boolean isMine) {
         SwingUtilities.invokeLater(() -> {
-            // === СОЗДАЁМ ПУЗЫРЁК С ЗАКРУГЛЁННОЙ РАМКОЙ ДЛЯ ЧУЖИХ ===
+
+            boolean isPrivate = text.startsWith("🔒 ");
+
             RoundedPanel bubble = new RoundedPanel(15, !isMine); // true = рисовать рамку
             bubble.setLayout(new BoxLayout(bubble, BoxLayout.Y_AXIS));
 
             int padding = 8;
             int paddingSide = 10;
+
+
             if (isMine) {
-                bubble.setBackground(new Color(0, 120, 215));
-                bubble.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10)); // Было (8, 12, 8, 12)
+                // Мои сообщения
+                bubble.setBackground(isPrivate ? new Color(160, 140, 220) : new Color(0, 120, 215));
             } else {
-                bubble.setBackground(Color.WHITE);
-                // Убираем LineBorder - рамка теперь рисуется в paintComponent
-                bubble.setBorder(BorderFactory.createEmptyBorder(padding, paddingSide, padding, paddingSide));
+                // Чужие сообщения
+                bubble.setBackground(isPrivate ? new Color(245, 235, 210) : Color.WHITE);
             }
+            bubble.setBorder(BorderFactory.createEmptyBorder(padding, paddingSide, padding, paddingSide));
+
 
             // Имя автора - слева сверху
             JLabel nameLabel = new JLabel(author);
@@ -475,14 +481,14 @@ public class ClientGui implements UI {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Имя:"), gbc);
         gbc.gridx = 1;
-        JTextField nameField = new JTextField(15);
+        JTextField nameField = new JTextField(12);
         nameField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         panel.add(nameField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Пароль:"), gbc);
         gbc.gridx = 1;
-        JPasswordField passwordField = new JPasswordField(15);
+        JPasswordField passwordField = new JPasswordField(12);
         passwordField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         panel.add(passwordField, gbc);
 
@@ -517,14 +523,14 @@ public class ClientGui implements UI {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Имя:"), gbc);
         gbc.gridx = 1;
-        JTextField nameField = new JTextField(15);
+        JTextField nameField = new JTextField(12);
         nameField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         panel.add(nameField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Пароль:"), gbc);
         gbc.gridx = 1;
-        JPasswordField passwordField = new JPasswordField(15);
+        JPasswordField passwordField = new JPasswordField(12);
         passwordField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         panel.add(passwordField, gbc);
 
@@ -601,7 +607,7 @@ public class ClientGui implements UI {
                     userListModel.clear();
                     for (String user : users) {
                         if (!user.isEmpty() && !userListModel.contains(user)) {
-                            userListModel.addElement(user);
+                            userListModel.addElement(user.toUpperCase());
                         }
                     }
                 }
@@ -630,8 +636,8 @@ public class ClientGui implements UI {
                             sendButton.setEnabled(true);
                             messageField.requestFocus();
                         }
-                        if (!userListModel.contains(name)) {
-                            userListModel.addElement(name);
+                        if (!userListModel.contains(name.toUpperCase())) {
+                            userListModel.addElement(name.toUpperCase());
                         }
                         addSystemMessage(data);
                     } else if (data.startsWith("Пользователь ") && data.endsWith(" вышел из чата")) {
